@@ -1,23 +1,61 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
+import os
+import platform
+import subprocess
 import asyncio
+import psutil
+import threading
+import time
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
-progress_queue = asyncio.Queue()
 
+# CORS setup (adjust if needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+LOG_DIR = "logs"
+LOG_FILE = os.path.join(LOG_DIR, "output.log")
+
+
+def ensure_log_file_exists():
+    os.makedirs(LOG_DIR, exist_ok=True)
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("")  # create empty log file
+
+
 @app.post("/run")
-async def run_module():
-    print("✅ /run endpoint triggered")
-    asyncio.create_task(simulate_steps(progress_queue))
+def run_module():
+    print("🚀 Starting dummy_task.py in new terminal with logging")
+
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+    if platform.system() == "Windows":
+        subprocess.Popen(
+            ["cmd", "/c", f"python dummy_task.py >> {LOG_FILE} 2>&1"],
+            creationflags=subprocess.CREATE_NEW_CONSOLE
+        )
+    elif platform.system() == "Linux":
+        subprocess.Popen(
+            ["gnome-terminal", "--", "bash", "-c", f"python3 dummy_task.py >> {LOG_FILE} 2>&1; exec bash"]
+        )
+    elif platform.system() == "Darwin":
+        subprocess.Popen(
+            ["osascript", "-e", f'tell app "Terminal" to do script "python3 dummy_task.py >> {LOG_FILE} 2>&1"']
+        )
+    else:
+        return {"error": "Unsupported OS"}
+
     return {"status": "started"}
+
 
 @app.websocket("/ws/progress")
 async def websocket_endpoint(websocket: WebSocket):
@@ -25,41 +63,63 @@ async def websocket_endpoint(websocket: WebSocket):
     print("🔌 WebSocket connected")
 
     try:
-        while True:
-            message = await progress_queue.get()
+        ensure_log_file_exists()
 
-            if message == "__DONE__":
-                print("🛑 Received DONE signal. Closing WebSocket.")
-                await websocket.send_text("✅ Module complete.")
-                break
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            f.seek(0, os.SEEK_END)  # Move to end of file
 
-            print(f"📤 Sending message: {message}")
-            await websocket.send_text(message)
+            while True:
+                line = f.readline()
+                if line:
+                    await websocket.send_text(line.strip())
+                else:
+                    await asyncio.sleep(0.5)  # Wait briefly before checking again
 
+                # Optional: stop after inactivity
+                if not is_process_running("dummy_task.py"):
+                    await websocket.send_text("✅ Process complete")
+                    await websocket.close()
+                    break
+
+    except WebSocketDisconnect:
+        print("❌ WebSocket disconnected")
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
-    finally:
+        await websocket.send_text(f"⚠️ Error: {str(e)}")
         await websocket.close()
-        print("🔌 WebSocket closed")
 
-async def simulate_steps(queue: asyncio.Queue):
-    print("🧪 simulate_steps() called")
-    steps = [
-        "[Normalizer] 🧪 Applied 'zscore' normalization.",
-        "2025-04-15 12:29:23,070 Start MPyC runtime v0.10",
-        "2025-04-15 12:29:24,597 All 3 parties connected.",
-        "[Party 1] ✅ Received user ID lists from all parties.",
-        "[Party 1] 🔎 Computing intersection of user IDs...",
-        "[Party 1] 🔗 Found 20 intersected user IDs in 77.70s",
-        "[Party 1] 🧩 Filtering data for intersected user IDs...",
-        "[Party 1] 📦 Filtered 20 records.",
-        "[Party 1] ✅ Completed data join.",
-        "[Party 1] 🧾 Final joined dataset (features + label)",
-        "✅ Done!"
-    ]
 
-    for step in steps:
-        await queue.put(step)
-        await asyncio.sleep(1)
+@app.post("/run")
+def run_module():
+    print("🚀 Starting dummy_task.py in new terminal with logging")
 
-    await queue.put("__DONE__")
+    # Ensure log file directory exists
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+    if platform.system() == "Windows":
+        subprocess.Popen(
+            ["start", "cmd", "/k", f"python dummy_task.py >> {LOG_FILE} 2>&1"],
+            shell=True
+        )
+    elif platform.system() == "Linux":
+        subprocess.Popen(
+            ["gnome-terminal", "--", "bash", "-c", f"python3 dummy_task.py >> {LOG_FILE} 2>&1; exec bash"]
+        )
+    elif platform.system() == "Darwin":  # macOS
+        subprocess.Popen(
+            ["osascript", "-e", f'tell app "Terminal" to do script "python3 dummy_task.py >> {LOG_FILE} 2>&1"']
+        )
+    else:
+        return {"error": "Unsupported OS"}
+
+    return {"status": "started"}
+
+
+def is_process_running(script_name: str):
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            cmdline = proc.info.get("cmdline")
+            if cmdline and isinstance(cmdline, list) and script_name in " ".join(cmdline):
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return False

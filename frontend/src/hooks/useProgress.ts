@@ -11,7 +11,7 @@ export function useProgress() {
         ws.onclose = () => console.log("🔌 WebSocket closed");
 
         ws.onmessage = (event) => {
-        console.log("📨 WebSocket message", event.data);
+            console.log("📨 WebSocket message", event.data);
             setMessages((prev) => [...prev, event.data]);
         };
 
