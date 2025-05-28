@@ -1,16 +1,14 @@
 import os
-import platform
 import subprocess
 import asyncio
-import psutil
 import threading
 import time
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 app = FastAPI()
+process_ref = None
 
 # CORS setup (adjust if needed)
 app.add_middleware(
@@ -33,27 +31,25 @@ def ensure_log_file_exists():
 
 
 @app.post("/run")
-def run_module():
-    print("🚀 Starting dummy_task.py in new terminal with logging")
+def run_module(background_tasks: BackgroundTasks):
+    global process_ref
+    print("🚀 Launching dummy_task.py")
 
-    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    ensure_log_file_exists()
 
-    if platform.system() == "Windows":
-        subprocess.Popen(
-            ["cmd", "/c", f"python dummy_task.py >> {LOG_FILE} 2>&1"],
-            creationflags=subprocess.CREATE_NEW_CONSOLE
-        )
-    elif platform.system() == "Linux":
-        subprocess.Popen(
-            ["gnome-terminal", "--", "bash", "-c", f"python3 dummy_task.py >> {LOG_FILE} 2>&1; exec bash"]
-        )
-    elif platform.system() == "Darwin":
-        subprocess.Popen(
-            ["osascript", "-e", f'tell app "Terminal" to do script "python3 dummy_task.py >> {LOG_FILE} 2>&1"']
-        )
-    else:
-        return {"error": "Unsupported OS"}
+    def run_and_log():
+        global process_ref
+        with open(LOG_FILE, "w", encoding="utf-8") as logfile:
+            process_ref = subprocess.Popen(
+                ["python", "dummy_task.py"],
+                stdout=logfile,
+                stderr=logfile,
+                bufsize=1,
+                universal_newlines=True,
+            )
+            process_ref.wait()
 
+    background_tasks.add_task(run_and_log)
     return {"status": "started"}
 
 
@@ -63,63 +59,32 @@ async def websocket_endpoint(websocket: WebSocket):
     print("🔌 WebSocket connected")
 
     try:
+        # Clear the log file so frontend always gets a fresh stream
         ensure_log_file_exists()
+        with open(LOG_FILE, "w", encoding="utf-8"):
+            pass  # truncate file to zero length
 
         with open(LOG_FILE, "r", encoding="utf-8") as f:
-            f.seek(0, os.SEEK_END)  # Move to end of file
+            f.seek(0, os.SEEK_END)  # Start tailing from the end
+            
+            has_output = False  # Track if we have sent any output
 
             while True:
                 line = f.readline()
                 if line:
+                    has_output = True
                     await websocket.send_text(line.strip())
                 else:
-                    await asyncio.sleep(0.5)  # Wait briefly before checking again
+                    await asyncio.sleep(0.5)
 
-                # Optional: stop after inactivity
-                if not is_process_running("dummy_task.py"):
+                # End WebSocket when dummy_task.py ends
+                if process_ref and process_ref.poll() is not None and has_output:
                     await websocket.send_text("✅ Process complete")
                     await websocket.close()
                     break
 
     except WebSocketDisconnect:
-        print("❌ WebSocket disconnected")
+        print("❌ WebSocket disconnected — log cleared")
     except Exception as e:
         await websocket.send_text(f"⚠️ Error: {str(e)}")
         await websocket.close()
-
-
-@app.post("/run")
-def run_module():
-    print("🚀 Starting dummy_task.py in new terminal with logging")
-
-    # Ensure log file directory exists
-    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-
-    if platform.system() == "Windows":
-        subprocess.Popen(
-            ["start", "cmd", "/k", f"python dummy_task.py >> {LOG_FILE} 2>&1"],
-            shell=True
-        )
-    elif platform.system() == "Linux":
-        subprocess.Popen(
-            ["gnome-terminal", "--", "bash", "-c", f"python3 dummy_task.py >> {LOG_FILE} 2>&1; exec bash"]
-        )
-    elif platform.system() == "Darwin":  # macOS
-        subprocess.Popen(
-            ["osascript", "-e", f'tell app "Terminal" to do script "python3 dummy_task.py >> {LOG_FILE} 2>&1"']
-        )
-    else:
-        return {"error": "Unsupported OS"}
-
-    return {"status": "started"}
-
-
-def is_process_running(script_name: str):
-    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-        try:
-            cmdline = proc.info.get("cmdline")
-            if cmdline and isinstance(cmdline, list) and script_name in " ".join(cmdline):
-                return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-    return False
