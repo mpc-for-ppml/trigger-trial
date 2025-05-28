@@ -68,17 +68,23 @@ async def websocket_endpoint(websocket: WebSocket):
             f.seek(0, os.SEEK_END)  # Start tailing from the end
             
             has_output = False  # Track if we have sent any output
+            milestone_final = "✅ Dummy task complete"
+            sent_final = False
 
-            while True:
+            while True:            
                 line = f.readline()
                 if line:
+                    cleaned_line = line.strip()
+                    await websocket.send_text(cleaned_line)
                     has_output = True
-                    await websocket.send_text(line.strip())
+
+                    if cleaned_line == milestone_final:
+                        sent_final = True
                 else:
                     await asyncio.sleep(0.5)
 
                 # End WebSocket when dummy_task.py ends
-                if process_ref and process_ref.poll() is not None and has_output:
+                if process_ref and process_ref.poll() is not None and has_output and sent_final:
                     await websocket.send_text("✅ Process complete")
                     await websocket.close()
                     break
