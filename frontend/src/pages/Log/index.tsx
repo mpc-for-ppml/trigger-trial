@@ -1,4 +1,4 @@
-import { useProgress } from "../hooks/useProgress";
+import { useProgress } from "../../hooks/useProgress";
 
 const milestones = [
     "🚀 MPyC task started",
@@ -47,7 +47,7 @@ export function ProgressLog() {
                             `}
                         />
                         {/* Label */}
-                        <span className="text-xs mt-2 max-w-[80px] break-words">
+                        <span className="text-xs mt-2 max-w-[90px] break-words">
                             {milestone.replace("🔧 ", "").replace("🚀 ", "").replace("✅ ", "")}
                         </span>
                     </div>
@@ -55,7 +55,7 @@ export function ProgressLog() {
             </div>
 
             {/* Optional Raw Logs */}
-            <div className="space-y-1 font-mono text-sm text-gray-700 max-h-40 overflow-y-auto">
+            <div className="space-y-1 font-mono text-sm text-start text-gray-700 max-h-40 overflow-y-auto">
                 {messages.length === 0 && <div>No progress yet.</div>}
                 {messages.map((msg, idx) => (
                     <div key={idx}>{msg}</div>
