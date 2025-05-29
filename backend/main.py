@@ -44,7 +44,7 @@ def run_module(background_tasks: BackgroundTasks):
         with open(LOG_FILE, "w", encoding="utf-8") as logfile:
             for i in range(num_parties):
                 p = subprocess.Popen(
-                    [sys.executable, "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
+                    [sys.executable, "-m", "mpyc", "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
                     stdout=logfile,
                     stderr=logfile,
                     bufsize=1,

@@ -3,24 +3,32 @@ from mpyc.runtime import mpc
 import sys
 import io
 
+# Ensure UTF-8 encoding
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+def log(msg):
+    print(f"[Party {mpc.pid}] {msg}", flush=True)
 
 secint = mpc.SecInt()
 
 async def mpc_task():
-    print("🚀 MPyC task started", flush=True)
-    print("🔐 Starting secure computation...", flush=True)
+    log("🚀 MPyC task started")
+    log("🔐 Starting secure computation...")
 
-    await mpc.start()    
+    await mpc.start()
+    
     for i in range(500):
-        x = mpc.input(mpc.SecInt()(i))
-        y = mpc.input(mpc.SecInt()(2 * i))
+        x = mpc.input(secint(i))
+        y = mpc.input(secint(2 * i))
         z = await mpc.output(x + y)
 
-        print(f"🔧 Working... step {int((i+1)/100)}/5", flush=True)
-        print(f"📝 Secure result: {z}", flush=True)
+        if i % 100 == 0:
+            log(f"🔧 Working... step {int((i+1)/100)}/5")
+        log(f"📝 Secure result: {z}")
 
     await mpc.shutdown()
+    log("🛑 MPyC shutdown")
 
-mpc.run(mpc_task())  # <== THIS handles the asyncio loop correctly
-print("✅ MPyC task complete", flush=True)
+# Use MPyC's loop-safe runner
+mpc.run(mpc_task())
+log("✅ MPyC task complete")
