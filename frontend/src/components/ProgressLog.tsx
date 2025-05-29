@@ -15,7 +15,7 @@ export function ProgressLog() {
 
     // Check which milestones have been reached
     const reached = milestones.map((milestone) =>
-        messages.includes(milestone)
+        messages.some((msg) => msg.includes(milestone))
     );
 
     return (

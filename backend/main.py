@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 LOG_DIR = "logs"
-LOG_FILE = os.path.join(LOG_DIR, "output.log")
+LOG_FILE = os.path.join(LOG_DIR, "party_0.log")
 
 
 def ensure_log_file_exists():
@@ -36,24 +36,35 @@ def run_module(background_tasks: BackgroundTasks):
     print("🚀 Launching 3-party MPyC task")
 
     ensure_log_file_exists()
-
+    
     def run_and_log():
         num_parties = 3
         processes = []
 
-        with open(LOG_FILE, "w", encoding="utf-8") as logfile:
-            for i in range(num_parties):
-                p = subprocess.Popen(
-                    [sys.executable, "-m", "mpyc", "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
-                    stdout=logfile,
-                    stderr=logfile,
-                    bufsize=1,
-                    universal_newlines=True,
-                )
-                processes.append(p)
+        os.makedirs(LOG_DIR, exist_ok=True)  # Ensure logs/ exists
 
-            for p in processes:
-                p.wait()
+        for i in range(num_parties):
+            party_log_path = os.path.join(LOG_DIR, f"party_{i}.log")
+
+            # Ensure the log file is created and empty
+            with open(party_log_path, "w", encoding="utf-8") as f:
+                f.write(f"[Party {i}] Log initialized\n")
+
+            logfile = open(party_log_path, "a", encoding="utf-8")  # append mode
+
+            p = subprocess.Popen(
+                [sys.executable, "-u", "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
+                stdout=logfile,
+                stderr=logfile,
+                bufsize=1,
+                universal_newlines=True,
+            )
+            processes.append((p, logfile))
+            time.sleep(0.1)  # Slight delay to reduce contention
+
+        for p, logfile in processes:
+            p.wait()
+            logfile.close()
 
     background_tasks.add_task(run_and_log)
     return {"status": "started"}

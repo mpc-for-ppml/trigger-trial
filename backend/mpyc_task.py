@@ -17,7 +17,7 @@ async def mpc_task():
 
     await mpc.start()
     
-    for i in range(500):
+    for i in range(501):
         x = mpc.input(secint(i))
         y = mpc.input(secint(2 * i))
         z = await mpc.output(x + y)
