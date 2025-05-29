@@ -17,7 +17,7 @@ function App() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-white">
+    <main className="min-h-screen min-w-screen flex flex-col items-center justify-center gap-6 p-6 bg-white">
       <button
         onClick={handleRun}
         disabled={isRunning}

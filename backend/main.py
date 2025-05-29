@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 import asyncio
-import threading
+import re
 import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
@@ -48,7 +48,7 @@ def run_module(background_tasks: BackgroundTasks):
 
             # Ensure the log file is created and empty
             with open(party_log_path, "w", encoding="utf-8") as f:
-                f.write(f"[Party {i}] Log initialized\n")
+                f.write(f"")
 
             logfile = open(party_log_path, "a", encoding="utf-8")  # append mode
 
@@ -87,11 +87,18 @@ async def websocket_endpoint(websocket: WebSocket):
             has_output = False  # Track if we have sent any output
             milestone_final = "✅ MPyc task complete"
             sent_final = False
+            
+            party_log_pattern = re.compile(r"^\[Party \d+] ")
 
             while True:            
                 line = f.readline()
                 if line:
                     cleaned_line = line.strip()
+                    
+                    # Filter: only send lines that start with [Party X]
+                    if not party_log_pattern.match(cleaned_line):
+                        continue
+                    
                     await websocket.send_text(cleaned_line)
                     has_output = True
 
