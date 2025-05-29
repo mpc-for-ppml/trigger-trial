@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import asyncio
 import threading
@@ -32,22 +33,27 @@ def ensure_log_file_exists():
 
 @app.post("/run")
 def run_module(background_tasks: BackgroundTasks):
-    global process_ref
-    print("🚀 Launching dummy_task.py")
+    print("🚀 Launching 3-party MPyC task")
 
     ensure_log_file_exists()
 
     def run_and_log():
-        global process_ref
+        num_parties = 3
+        processes = []
+
         with open(LOG_FILE, "w", encoding="utf-8") as logfile:
-            process_ref = subprocess.Popen(
-                ["python", "dummy_task.py"],
-                stdout=logfile,
-                stderr=logfile,
-                bufsize=1,
-                universal_newlines=True,
-            )
-            process_ref.wait()
+            for i in range(num_parties):
+                p = subprocess.Popen(
+                    [sys.executable, "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
+                    stdout=logfile,
+                    stderr=logfile,
+                    bufsize=1,
+                    universal_newlines=True,
+                )
+                processes.append(p)
+
+            for p in processes:
+                p.wait()
 
     background_tasks.add_task(run_and_log)
     return {"status": "started"}
@@ -68,7 +74,7 @@ async def websocket_endpoint(websocket: WebSocket):
             f.seek(0, os.SEEK_END)  # Start tailing from the end
             
             has_output = False  # Track if we have sent any output
-            milestone_final = "✅ Dummy task complete"
+            milestone_final = "✅ MPyc task complete"
             sent_final = False
 
             while True:            
@@ -85,7 +91,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # End WebSocket when dummy_task.py ends
                 if process_ref and process_ref.poll() is not None and has_output and sent_final:
-                    await websocket.send_text("✅ Process complete")
+                    await websocket.send_text("🛑 MPyC shutdown")
                     await websocket.close()
                     break
 

@@ -1,13 +1,13 @@
 import { useProgress } from "../hooks/useProgress";
 
 const milestones = [
-    "🚀 Dummy task started",
+    "🚀 MPyC task started",
     "🔧 Working... step 1/5",
     "🔧 Working... step 2/5",
     "🔧 Working... step 3/5",
     "🔧 Working... step 4/5",
     "🔧 Working... step 5/5",
-    "✅ Dummy task complete",
+    "✅ MPyC task complete",
 ];
 
 export function ProgressLog() {
