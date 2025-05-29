@@ -5,7 +5,7 @@ import asyncio
 import re
 import time
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -32,8 +32,10 @@ def ensure_log_file_exists():
 
 
 @app.post("/run")
-def run_module(background_tasks: BackgroundTasks):
-    print("🚀 Launching 3-party MPyC task")
+def run_module(background_tasks: BackgroundTasks, request: Request):
+    data = asyncio.run(request.json())
+    mode = data.get("mode", "light")  # default to 'light' if not provided
+    print(f"🚀 Launching MPyC task with mode: {mode}")
 
     ensure_log_file_exists()
     
@@ -53,7 +55,7 @@ def run_module(background_tasks: BackgroundTasks):
             logfile = open(party_log_path, "a", encoding="utf-8")  # append mode
 
             p = subprocess.Popen(
-                [sys.executable, "-u", "mpyc_task.py", "-M", str(num_parties), "-I", str(i)],
+                [sys.executable, "-u", "mpyc_task.py", "-M", str(num_parties), "-I", str(i), "--mode", mode],
                 stdout=logfile,
                 stderr=logfile,
                 bufsize=1,
@@ -67,7 +69,7 @@ def run_module(background_tasks: BackgroundTasks):
             logfile.close()
 
     background_tasks.add_task(run_and_log)
-    return {"status": "started"}
+    return {"status": "started", "mode": mode}
 
 
 @app.websocket("/ws/progress")

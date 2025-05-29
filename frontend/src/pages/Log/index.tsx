@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useProgress } from "../../hooks/useProgress";
 
 const milestones = [
@@ -11,6 +12,7 @@ const milestones = [
 ];
 
 export function ProgressLog() {
+    const navigate = useNavigate();
     const { messages } = useProgress();
 
     // Check which milestones have been reached
@@ -61,6 +63,13 @@ export function ProgressLog() {
                     <div key={idx}>{msg}</div>
                 ))}
             </div>
+
+            <button
+                onClick={() => navigate("/")}
+                className="px-4 py-2 mt-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+            >
+                Go Back
+            </button>
         </div>
     );
 }
